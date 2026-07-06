@@ -1,3 +1,16 @@
+"""Игра "Изгиб" питона на pygame.
+
+Помимо основной логики, реализовал:
+- Яблоко не появляется на змейке.
+- Есть ускорение при зажатии клавиши.
+- Скорость увеличивается после каждых 10 съеденных яблок.
+- Реализована отрисовка счёта.
+- Есть хорошие и плохие яблоки.
+- Плохие яблоки укорачивают хвост.
+- Яблоки исчезают по таймеру с разным временем жизни.
+- Выход по ESC.
+"""
+
 import pygame
 from random import choice, choices, randint
 
@@ -29,20 +42,21 @@ REVERSED_KEY = {
 BOARD_BACKGROUND_COLOR = (0, 0, 0)
 LINE_BACKGROUND_COLOR = (15, 30, 50)
 SCORE_COLOR = (0, 0, 30)
-BORDER_COLOR = (93, 216, 228)
-APPLE_COLOR = (255, 0, 0)
-BAD_APPLE_COLOR = (155, 40, 60)
-SNAKE_COLOR = (0, 255, 0)
+BORDER_COLOR = (100, 100, 100)
+APPLE_COLOR = (240, 180, 0)
+BAD_APPLE_COLOR = (120, 40, 200)
+SNAKE_COLOR = (255, 255, 255)
 # Initial speed:
 SPEED = 5
 
 # Pygame setup:
 pygame.init()
-pygame.display.set_caption('Змейка')
+pygame.display.set_caption('Изгиб питона')
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
 clock = pygame.time.Clock()
 
-# Classes 
+
+# Classes
 class Utils:
     """Various additional tools."""
 
@@ -53,7 +67,7 @@ class Utils:
             raise ValueError('omin and omax should not be equal.')
         normalize = (value - omin) / (omax - omin)
         return nmin + normalize * (nmax - nmin)
-    
+
     @staticmethod
     def clamp(value, min_value=0, max_value=255):
         """Clamp value."""
@@ -63,15 +77,15 @@ class Utils:
     def color_correct(color, step):
         """Correct color"""
         return tuple(Utils.clamp(c + step) for c in color)
-    
+
+
 class Board:
-    """
-    Creating a board, segment, account keeping, rendering light.
-    
-    """
+    """Creating a board, segment, account keeping, rendering light."""
+
     def __init__(self, surface=screen):
         self.surface = surface
         self.score = 0
+        self.speed_step = 0
         self.score_color = SCORE_COLOR
         self.rest_speed = SPEED
         self.speed = SPEED
@@ -112,29 +126,57 @@ class Board:
         pygame.draw.rect(self.surface, bg_color, rect)
         if line:
             pygame.draw.rect(self.surface, line_color, rect, 1)
-    
+
     def update_score(self, eatable=1):
         """Counting the score and drawing it."""
-        x = self.score % GRID_WIDTH
-        y = self.score // GRID_WIDTH
-        self.score += eatable
-        if eatable == -1:
-            self.draw_segment((x, y), bg_color=BOARD_BACKGROUND_COLOR)
-        else:
+        old_score = self.score
+        self.score = max(0, self.score + eatable)
+        if eatable > 0:
+            x = old_score % GRID_WIDTH
+            y = old_score // GRID_WIDTH
             self.draw_segment((x, y), bg_color=self.score_color)
 
             score_step = self.score % 10
-            speed_step = self.score // 10
-            
-            self.speed = self.speed + speed_step
+            self.speed_step = self.score // 10
+            self.speed = self.rest_speed + self.speed_step
 
             fit_score_step = Utils.fit(score_step, 0, 5, 0, 1)
-            fit_speed_step = Utils.fit(speed_step + 1, 0, 10, 0, .5) + .25
-            color_step = Utils.fit(fit_score_step * fit_speed_step, 0, 1, 0, 255)
-            color = SCORE_COLOR
+            fit_speed_step = Utils.fit(self.speed_step + 1, 0, 9, 0, .5) + .25
+            color_step = Utils.fit(
+                fit_score_step * fit_speed_step,
+                0, 1, 0, 255
+            )
 
-            self.score_color = Utils.color_correct(color, color_step) 
+            self.score_color = Utils.color_correct(SCORE_COLOR, color_step)
             self.score_info[(x, y)] = self.score_color
+
+        elif eatable < 0 and old_score > 0:
+            x = (old_score - 1) % GRID_WIDTH
+            y = (old_score - 1) // GRID_WIDTH
+            self.draw_segment((x, y), bg_color=BOARD_BACKGROUND_COLOR)
+
+            self.score_info.pop((x, y), None)
+            self.speed_step = self.score // 10
+            self.speed = self.rest_speed + self.speed_step
+
+            score_step = self.score % 10
+            fit_score_step = Utils.fit(score_step, 0, 5, 0, 1)
+            fit_speed_step = Utils.fit(self.speed_step + 1, 0, 9, 0, .5) + .25
+            color_step = Utils.fit(
+                fit_score_step * fit_speed_step,
+                0, 1, 0, 255
+            )
+
+            self.score_color = Utils.color_correct(SCORE_COLOR, color_step)
+
+    def acceleration(self, key_pressed):
+        """Acceleration while pressing the key."""
+        base_speed = self.rest_speed + self.speed_step
+        self.speed = base_speed + 5 if key_pressed else base_speed
+
+    def get_speed(self):
+        """Return game speeed."""
+        return self.speed
 
     def get_score_info(self):
         """Dict from score_position and score color."""
@@ -143,6 +185,7 @@ class Board:
     def reset_score(self):
         """Reset score if snake collision with itself."""
         self.score = 0
+        self.speed_step = 0
         self.speed = self.rest_speed
         self.score_color = SCORE_COLOR
         self.score_info = dict()
@@ -167,28 +210,42 @@ class Apple(GameObject):
     def __init__(self, board=screen, position=None, body_color=APPLE_COLOR):
         super().__init__(board, position, body_color)
         self.apple_type = 'good'
+        self.time = 0
+        self._last_position = None
 
     def randomize_position(self, collision_positions=None):
         """Randomize apple position."""
+        collision_positions = set(collision_positions or [])
+        self._last_position = self.position
         while True:
-            self.position = (
+            position = (
                 randint(0, GRID_WIDTH - 1),
                 randint(0, GRID_HEIGHT - 1)
             )
-            if self.position not in collision_positions:
-                self.position = self.position
+            if position not in collision_positions:
+                self.position = position
                 return
-    
+
     def randomize_apple_type(self):
-        """Randomize apple"""
+        """Randomize apple."""
         apple_types = ['good', 'bad']
-        weights = [.8, .2]
+        weight = .7
+        weights = [weight, 1 - weight]
         self.apple_type = choices(apple_types, weights)[0]
         self.body_color = (
             BAD_APPLE_COLOR
             if self.apple_type == 'bad'
             else APPLE_COLOR
         )
+        self.time = 0
+
+    def timer(self, max_time=10):
+        """Timer. How long to show the apple."""
+        self.time += 1
+        if self.time > max_time:
+            self.time = 0
+            return True
+        return False
 
     def draw(self):
         """Drawing the apple."""
@@ -201,8 +258,21 @@ class Apple(GameObject):
 
     def get_apple_type(self):
         """Return 1 if apple_type = 'good' and -1 if apple_type = 'bad'"""
-        return 1 if self.apple_type == 'good' else -1
-    
+        return self.apple_type
+
+    def get_position(self):
+        """Apple position."""
+        return self.position
+
+    def clear_old(self):
+        """Clear previos apple position."""
+        if self._last_position is not None:
+            bg_color = self.board.get_score_info().get(
+                self._last_position, BOARD_BACKGROUND_COLOR
+            )
+            self.board.draw_segment(self._last_position, bg_color=bg_color)
+            self._last_position = None
+
 
 class Snake(GameObject):
     """Mr. Snake"""
@@ -212,9 +282,8 @@ class Snake(GameObject):
         self.positions = [self.position]
         self._length = 1
         self.direction = RIGHT
-        self._next_direction = None
         self._last = None
-        self._apple_count = 0
+        self._removed = []
 
     def update_direction(self, next_direction):
         """Update snake direction based on keyboard input."""
@@ -225,6 +294,8 @@ class Snake(GameObject):
 
     def move(self):
         """Move snake with keyboard."""
+        self._removed = []
+
         x, y = self.positions[0]
         dx, dy = self.direction
         self.positions.insert(
@@ -235,13 +306,18 @@ class Snake(GameObject):
             )
         )
         if len(self.positions) > self._length:
-            self._last = self.positions[-1]
-            self.positions.pop()
+            removed = self.positions.pop()
+            self._last = removed
+            self._removed.append(removed)
 
     def eat_apple(self, eatable=1):
         """Eat a good or bad apple. Lives increase or decrease."""
-        self._length += eatable
-        self._apple_count += 1
+        self._length = max(1, self._length + eatable)
+
+        while len(self.positions) > self._length:
+            removed = self.positions.pop()
+            self._last = removed
+            self._removed.append(removed)
 
     def choise_direction(self):
         """Choise random directory."""
@@ -257,7 +333,6 @@ class Snake(GameObject):
                 line=True,
                 line_color=BORDER_COLOR
             )
-
         # Head
         self.board.draw_segment(
             self.positions[0],
@@ -265,27 +340,30 @@ class Snake(GameObject):
             line=True,
             line_color=BORDER_COLOR
         )
-
         # Remove last segment
-        if self._last:
-            self.board.draw_segment(self._last, bg_color=background_color)
+        for pos in self._removed:
+            self.board.draw_segment(pos, bg_color=background_color)
+        self._removed = []
 
     def get_head_position(self):
         """Head position."""
         return self.positions[0]
-    
+
     def get_last_position(self):
         """Last position."""
         return self._last
-    
+
     def get_positions(self):
         """All snake positions."""
         return self.positions
-    
+
     def reset(self):
         """Reset on collision with itself."""
         self._length = 1
         self.positions = [self.position]
+        self._last = None
+        self._removed = []
+        self.choise_direction()
 
 
 def handle_keys():
@@ -300,20 +378,16 @@ def handle_keys():
                 quit_request = True
             else:
                 next_direction = KEY_TO_DIR.get(event.key)
-    
+
     keys = pygame.key.get_pressed()
-    key_pressed = None
-    for key in KEY_TO_DIR:
-        if keys[key]:
-            key_pressed = True
+    key_pressed = any(keys[key] for key in KEY_TO_DIR)
+
     return quit_request, next_direction, key_pressed
 
 
 def main():
     """Start the programm"""
-
     board = Board()
-    # board_color = BOARD_BACKGROUND_COLOR
     snake = Snake(board, (GRID_CENTER_X, GRID_CENTER_Y))
     apple = Apple(board)
     apple.randomize_position([snake.get_head_position()])
@@ -328,9 +402,6 @@ def main():
             continue
 
         snake.update_direction(next_direction)
-
-        
-
         snake.move()
 
         # The snake eats itself.
@@ -339,16 +410,28 @@ def main():
             board.reset_score()
             board.draw()
             continue
-        
 
-            
+        # Good and Bad apple timer
+        if apple.get_apple_type() == 'good':
+            if apple.timer(50):
+                apple.randomize_position(snake.get_positions())
+                apple.clear_old()
+                apple.randomize_apple_type()
+        else:
+            if apple.timer(15):
+                apple.randomize_position(snake.get_positions())
+                apple.clear_old()
+                apple.randomize_apple_type()
+
         # The snake eats apple.
         if snake.get_head_position() == apple.position:
-            snake.eat_apple(eatable=apple.get_apple_type())
+            apple_effect = 1 if apple.get_apple_type() == 'good' else -1
+            snake.eat_apple(eatable=apple_effect)
+            board.update_score(eatable=apple_effect)
             apple.randomize_position(snake.get_positions())
+            apple.clear_old()
             apple.randomize_apple_type()
-            board.update_score(eatable=apple.get_apple_type())
-        
+
         board_color = board.get_score_info().get(
             snake.get_last_position(),
             BOARD_BACKGROUND_COLOR
@@ -356,13 +439,13 @@ def main():
 
         apple.draw()
         snake.draw(board_color)
-
-        speed = board.speed + 5 if key_pressed else board.speed
+        board.acceleration(key_pressed)
 
         pygame.display.update()
-        clock.tick(speed)
+        clock.tick(board.get_speed())
 
     pygame.quit()
+
 
 if __name__ == '__main__':
     main()
