@@ -15,7 +15,6 @@ from random import choice, choices, randint
 
 import pygame
 
-
 # CONSTANTS
 # Screen constants:
 GRID_SIZE = 20
@@ -214,7 +213,7 @@ class Apple(GameObject):
         self.body_color = (
             BAD_APPLE_COLOR
             if self.apple_type == 'bad'
-            else APPLE_COLOR,
+            else APPLE_COLOR
         )
         self.time = 0
 
