@@ -1,4 +1,4 @@
-"""Игра "Изгиб" питона на pygame.
+"""Игра "Изгиб питона" на pygame.
 
 Помимо основной логики, реализовал:
 - Яблоко не появляется на змейке.
@@ -11,8 +11,9 @@
 - Выход по ESC.
 """
 
-import pygame
 from random import choice, choices, randint
+
+import pygame
 
 
 # CONSTANTS
@@ -57,28 +58,6 @@ clock = pygame.time.Clock()
 
 
 # Classes
-class Utils:
-    """Various additional tools."""
-
-    @staticmethod
-    def fit(value, omin, omax, nmin, nmax):
-        """Fit value by min/max"""
-        if omax == omin:
-            raise ValueError('omin and omax should not be equal.')
-        normalize = (value - omin) / (omax - omin)
-        return nmin + normalize * (nmax - nmin)
-
-    @staticmethod
-    def clamp(value, min_value=0, max_value=255):
-        """Clamp value."""
-        return max(min_value, min(max_value, int(value)))
-
-    @staticmethod
-    def color_correct(color, step):
-        """Correct color"""
-        return tuple(Utils.clamp(c + step) for c in color)
-
-
 class Board:
     """Creating a board, segment, account keeping, rendering light."""
 
@@ -100,7 +79,7 @@ class Board:
                 LINE_BACKGROUND_COLOR,
                 (0, y),
                 (SCREEN_WIDTH, y),
-                1
+                1,
             )
         for x in range(0, SCREEN_WIDTH, GRID_SIZE):
             pygame.draw.line(
@@ -108,7 +87,7 @@ class Board:
                 LINE_BACKGROUND_COLOR,
                 (x, 0),
                 (x, SCREEN_HEIGHT),
-                1
+                1,
             )
 
     def draw_segment(
@@ -140,14 +119,14 @@ class Board:
             self.speed_step = self.score // 10
             self.speed = self.rest_speed + self.speed_step
 
-            fit_score_step = Utils.fit(score_step, 0, 5, 0, 1)
-            fit_speed_step = Utils.fit(self.speed_step + 1, 0, 9, 0, .5) + .25
-            color_step = Utils.fit(
+            fit_score_step = fit(score_step, 0, 5, 0, 1)
+            fit_speed_step = fit(self.speed_step + 1, 0, 9, 0, .5) + .25
+            color_step = fit(
                 fit_score_step * fit_speed_step,
-                0, 1, 0, 255
+                0, 1, 0, 255,
             )
 
-            self.score_color = Utils.color_correct(SCORE_COLOR, color_step)
+            self.score_color = color_correct(SCORE_COLOR, color_step)
             self.score_info[(x, y)] = self.score_color
 
         elif eatable < 0 and old_score > 0:
@@ -160,14 +139,14 @@ class Board:
             self.speed = self.rest_speed + self.speed_step
 
             score_step = self.score % 10
-            fit_score_step = Utils.fit(score_step, 0, 5, 0, 1)
-            fit_speed_step = Utils.fit(self.speed_step + 1, 0, 9, 0, .5) + .25
-            color_step = Utils.fit(
+            fit_score_step = fit(score_step, 0, 5, 0, 1)
+            fit_speed_step = fit(self.speed_step + 1, 0, 9, 0, .5) + .25
+            color_step = fit(
                 fit_score_step * fit_speed_step,
-                0, 1, 0, 255
+                0, 1, 0, 255,
             )
 
-            self.score_color = Utils.color_correct(SCORE_COLOR, color_step)
+            self.score_color = color_correct(SCORE_COLOR, color_step)
 
     def acceleration(self, key_pressed):
         """Acceleration while pressing the key."""
@@ -220,7 +199,7 @@ class Apple(GameObject):
         while True:
             position = (
                 randint(0, GRID_WIDTH - 1),
-                randint(0, GRID_HEIGHT - 1)
+                randint(0, GRID_HEIGHT - 1),
             )
             if position not in collision_positions:
                 self.position = position
@@ -235,7 +214,7 @@ class Apple(GameObject):
         self.body_color = (
             BAD_APPLE_COLOR
             if self.apple_type == 'bad'
-            else APPLE_COLOR
+            else APPLE_COLOR,
         )
         self.time = 0
 
@@ -253,7 +232,7 @@ class Apple(GameObject):
             self.position,
             bg_color=self.body_color,
             line=True,
-            line_color=BORDER_COLOR
+            line_color=BORDER_COLOR,
         )
 
     def get_apple_type(self):
@@ -302,7 +281,7 @@ class Snake(GameObject):
             0,
             (
                 (x + dx) % GRID_WIDTH,
-                (y + dy) % GRID_HEIGHT
+                (y + dy) % GRID_HEIGHT,
             )
         )
         if len(self.positions) > self._length:
@@ -331,14 +310,14 @@ class Snake(GameObject):
                 position,
                 bg_color=self.body_color,
                 line=True,
-                line_color=BORDER_COLOR
+                line_color=BORDER_COLOR,
             )
         # Head
         self.board.draw_segment(
             self.positions[0],
             bg_color=self.body_color,
             line=True,
-            line_color=BORDER_COLOR
+            line_color=BORDER_COLOR,
         )
         # Remove last segment
         for pos in self._removed:
@@ -364,6 +343,24 @@ class Snake(GameObject):
         self._last = None
         self._removed = []
         self.choise_direction()
+
+
+def fit(value, omin, omax, nmin, nmax):
+    """Fit value by min/max"""
+    if omax == omin:
+        raise ValueError('omin and omax should not be equal.')
+    normalize = (value - omin) / (omax - omin)
+    return nmin + normalize * (nmax - nmin)
+
+
+def clamp(value, min_value=0, max_value=255):
+    """Clamp value."""
+    return max(min_value, min(max_value, int(value)))
+
+
+def color_correct(color, step):
+    """Correct color"""
+    return tuple(clamp(c + step) for c in color)
 
 
 def handle_keys():
@@ -434,7 +431,7 @@ def main():
 
         board_color = board.get_score_info().get(
             snake.get_last_position(),
-            BOARD_BACKGROUND_COLOR
+            BOARD_BACKGROUND_COLOR,
         )
 
         apple.draw()
