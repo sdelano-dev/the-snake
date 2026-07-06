@@ -94,7 +94,7 @@ class Board:
             position, *,
             bg_color=BOARD_BACKGROUND_COLOR,
             line=False,
-            line_color=LINE_BACKGROUND_COLOR
+            line_color=LINE_BACKGROUND_COLOR,
     ):
         """Drawing the one segment."""
         col, row = position
