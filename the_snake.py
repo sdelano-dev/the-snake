@@ -12,9 +12,7 @@
 """
 
 from random import choice, choices, randint
-
 import pygame
-
 
 GRID_SIZE = 20
 SCREEN_WIDTH, SCREEN_HEIGHT = 640, 480
