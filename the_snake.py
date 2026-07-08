@@ -15,30 +15,35 @@ from random import choice, choices, randint
 
 import pygame
 
-# CONSTANTS
-# Screen constants:
+
 GRID_SIZE = 20
 SCREEN_WIDTH, SCREEN_HEIGHT = 640, 480
 GRID_WIDTH, GRID_HEIGHT = SCREEN_WIDTH // GRID_SIZE, SCREEN_HEIGHT // GRID_SIZE
 GRID_CENTER_X, GRID_CENTER_Y = GRID_WIDTH // 2, GRID_HEIGHT // 2
-# Move constants:
+
 UP, DOWN, LEFT, RIGHT = (0, -1), (0, 1), (-1, 0), (1, 0)
-# Keys for use in handle_keys()
-# and for randomize the choice of direction upon restart:
+
+KEYS = {
+    (pygame.K_UP, UP): DOWN,
+    (pygame.K_DOWN, DOWN): UP,
+    (pygame.K_LEFT, LEFT): RIGHT,
+    (pygame.K_RIGHT, RIGHT): LEFT,
+}
+# Не могу не оставить коммент, очень крутое решение!)
 KEY_TO_DIR = {
     pygame.K_UP: UP,
     pygame.K_DOWN: DOWN,
     pygame.K_LEFT: LEFT,
     pygame.K_RIGHT: RIGHT,
 }
-# Dictionary for not walking backwards:
+
 REVERSED_KEY = {
     UP: DOWN,
     DOWN: UP,
     LEFT: RIGHT,
     RIGHT: LEFT,
 }
-# Colors constants:
+
 BOARD_BACKGROUND_COLOR = (0, 0, 0)
 LINE_BACKGROUND_COLOR = (15, 30, 50)
 SCORE_COLOR = (0, 0, 30)
@@ -46,28 +51,22 @@ BORDER_COLOR = (100, 100, 100)
 APPLE_COLOR = (240, 180, 0)
 BAD_APPLE_COLOR = (120, 40, 200)
 SNAKE_COLOR = (255, 255, 255)
-# Initial speed:
+
 SPEED = 5
 
-# Pygame setup:
 pygame.init()
 pygame.display.set_caption('Изгиб питона')
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), 0, 32)
 clock = pygame.time.Clock()
 
 
-# Classes
 class Board:
     """Creating a board, segment, account keeping, rendering light."""
 
     def __init__(self, surface=screen):
         self.surface = surface
-        self.score = 0
-        self.speed_step = 0
-        self.score_color = SCORE_COLOR
         self.rest_speed = SPEED
-        self.speed = SPEED
-        self.score_info = dict()
+        self.reset_score()
 
     def draw(self):
         """Drawing the board."""
@@ -185,11 +184,18 @@ class GameObject:
 class Apple(GameObject):
     """Good and bad apple."""
 
-    def __init__(self, board=screen, position=None, body_color=APPLE_COLOR):
+    def __init__(
+            self,
+            board=screen,
+            position=None,
+            collision_positions=None,
+            body_color=APPLE_COLOR,
+        ):
         super().__init__(board, position, body_color)
         self.apple_type = 'good'
         self.time = 0
         self._last_position = None
+        self.randomize_position(collision_positions)
 
     def randomize_position(self, collision_positions=None):
         """Randomize apple position."""
@@ -257,17 +263,12 @@ class Snake(GameObject):
 
     def __init__(self, board=screen, position=None, body_color=SNAKE_COLOR):
         super().__init__(board, position, body_color)
-        self.positions = [self.position]
-        self._length = 1
         self.direction = RIGHT
-        self._last = None
-        self._removed = []
+        self.reset(choise_dir=False)
 
     def update_direction(self, next_direction):
         """Update snake direction based on keyboard input."""
-        if next_direction is None:
-            return
-        if next_direction != REVERSED_KEY[self.direction]:
+        if next_direction and next_direction != REVERSED_KEYXXX[self.direction]:
             self.direction = next_direction
 
     def move(self):
@@ -299,26 +300,16 @@ class Snake(GameObject):
 
     def choise_direction(self):
         """Choise random directory."""
-        self.direction = choice(list(KEY_TO_DIR.values()))
+        self.direction = choice(list(KEY_TO_DIRXXX.values()))
 
     def draw(self, background_color):
         """Draw snake head and body."""
-        # Body
-        for position in self.positions[:-1]:
-            self.board.draw_segment(
-                position,
-                bg_color=self.body_color,
-                line=True,
-                line_color=BORDER_COLOR,
-            )
-        # Head
         self.board.draw_segment(
             self.positions[0],
             bg_color=self.body_color,
             line=True,
             line_color=BORDER_COLOR,
         )
-        # Remove last segment
         for pos in self._removed:
             self.board.draw_segment(pos, bg_color=background_color)
         self._removed = []
@@ -335,13 +326,14 @@ class Snake(GameObject):
         """All snake positions."""
         return self.positions
 
-    def reset(self):
+    def reset(self, choise_dir=True):
         """Reset on collision with itself."""
-        self._length = 1
         self.positions = [self.position]
+        self._length = 1
         self._last = None
         self._removed = []
-        self.choise_direction()
+        if choise_dir:
+            self.choise_direction()
 
 
 def fit(value, omin, omax, nmin, nmax):
@@ -373,10 +365,10 @@ def handle_keys():
             if event.key == pygame.K_ESCAPE:
                 quit_request = True
             else:
-                next_direction = KEY_TO_DIR.get(event.key)
+                next_direction = KEY_TO_DIRXXX.get(event.key)
 
     keys = pygame.key.get_pressed()
-    key_pressed = any(keys[key] for key in KEY_TO_DIR)
+    key_pressed = any(keys[key] for key in KEY_TO_DIRXXX)
 
     return quit_request, next_direction, key_pressed
 
@@ -385,8 +377,7 @@ def main():
     """Start the programm"""
     board = Board()
     snake = Snake(board, (GRID_CENTER_X, GRID_CENTER_Y))
-    apple = Apple(board)
-    apple.randomize_position([snake.get_head_position()])
+    apple = Apple(board, collision_positions=snake.get_positions())
 
     board.draw()
 
@@ -400,14 +391,6 @@ def main():
         snake.update_direction(next_direction)
         snake.move()
 
-        # The snake eats itself.
-        if snake.get_head_position() in snake.positions[1:]:
-            snake.reset()
-            board.reset_score()
-            board.draw()
-            continue
-
-        # Good and Bad apple timer
         if apple.get_apple_type() == 'good':
             if apple.timer(50):
                 apple.randomize_position(snake.get_positions())
@@ -419,8 +402,11 @@ def main():
                 apple.clear_old()
                 apple.randomize_apple_type()
 
-        # The snake eats apple.
-        if snake.get_head_position() == apple.position:
+        if snake.get_head_position() in snake.positions[1:]:
+            snake.reset()
+            board.reset_score()
+            board.draw()
+        elif snake.get_head_position() == apple.position:
             apple_effect = 1 if apple.get_apple_type() == 'good' else -1
             snake.eat_apple(eatable=apple_effect)
             board.update_score(eatable=apple_effect)
