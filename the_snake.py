@@ -24,24 +24,17 @@ GRID_CENTER_X, GRID_CENTER_Y = GRID_WIDTH // 2, GRID_HEIGHT // 2
 UP, DOWN, LEFT, RIGHT = (0, -1), (0, 1), (-1, 0), (1, 0)
 
 KEYS = {
-    (pygame.K_UP, UP): DOWN,
-    (pygame.K_DOWN, DOWN): UP,
-    (pygame.K_LEFT, LEFT): RIGHT,
-    (pygame.K_RIGHT, RIGHT): LEFT,
-}
-# Не могу не оставить коммент, очень крутое решение!)
-KEY_TO_DIR = {
-    pygame.K_UP: UP,
-    pygame.K_DOWN: DOWN,
-    pygame.K_LEFT: LEFT,
-    pygame.K_RIGHT: RIGHT,
-}
+    (pygame.K_UP, LEFT): UP,
+    (pygame.K_UP, RIGHT): UP,
 
-REVERSED_KEY = {
-    UP: DOWN,
-    DOWN: UP,
-    LEFT: RIGHT,
-    RIGHT: LEFT,
+    (pygame.K_DOWN, LEFT): DOWN,
+    (pygame.K_DOWN, RIGHT): DOWN,
+
+    (pygame.K_LEFT, UP): LEFT,
+    (pygame.K_LEFT, DOWN): LEFT,
+
+    (pygame.K_RIGHT, UP): RIGHT,
+    (pygame.K_RIGHT, DOWN): RIGHT,
 }
 
 BOARD_BACKGROUND_COLOR = (0, 0, 0)
@@ -190,7 +183,7 @@ class Apple(GameObject):
             position=None,
             collision_positions=None,
             body_color=APPLE_COLOR,
-        ):
+    ):
         super().__init__(board, position, body_color)
         self.apple_type = 'good'
         self.time = 0
@@ -268,7 +261,7 @@ class Snake(GameObject):
 
     def update_direction(self, next_direction):
         """Update snake direction based on keyboard input."""
-        if next_direction and next_direction != REVERSED_KEYXXX[self.direction]:
+        if next_direction:
             self.direction = next_direction
 
     def move(self):
@@ -300,7 +293,7 @@ class Snake(GameObject):
 
     def choise_direction(self):
         """Choise random directory."""
-        self.direction = choice(list(KEY_TO_DIRXXX.values()))
+        self.direction = choice(tuple(set(KEYS.values())))
 
     def draw(self, background_color):
         """Draw snake head and body."""
@@ -325,6 +318,10 @@ class Snake(GameObject):
     def get_positions(self):
         """All snake positions."""
         return self.positions
+
+    def get_direction(self):
+        """Current direction"""
+        return self.direction
 
     def reset(self, choise_dir=True):
         """Reset on collision with itself."""
@@ -354,7 +351,7 @@ def color_correct(color, step):
     return tuple(clamp(c + step) for c in color)
 
 
-def handle_keys():
+def handle_keys(direction):
     """Keyboard input."""
     quit_request = False
     next_direction = None
@@ -365,11 +362,9 @@ def handle_keys():
             if event.key == pygame.K_ESCAPE:
                 quit_request = True
             else:
-                next_direction = KEY_TO_DIRXXX.get(event.key)
-
+                next_direction = KEYS.get((event.key, direction))
     keys = pygame.key.get_pressed()
-    key_pressed = any(keys[key] for key in KEY_TO_DIRXXX)
-
+    key_pressed = any(keys[key[0]] for key in KEYS)
     return quit_request, next_direction, key_pressed
 
 
@@ -383,7 +378,9 @@ def main():
 
     running = True
     while running:
-        quit_request, next_direction, key_pressed = handle_keys()
+        quit_request, next_direction, key_pressed = handle_keys(
+            snake.get_direction()
+        )
         if quit_request:
             running = False
             continue
