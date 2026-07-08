@@ -12,6 +12,7 @@
 """
 
 from random import choice, choices, randint
+
 import pygame
 
 GRID_SIZE = 20
